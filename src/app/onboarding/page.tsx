@@ -3,6 +3,7 @@
 import { useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
+import { createClient } from "@/lib/supabase/client";
 
 /* ------------------------------------------------------------------ */
 /*  Step definitions                                                   */
@@ -116,8 +117,10 @@ function OnboardingContent() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [selections, setSelections] = useState<Record<number, string | string[]>>({});
+  const [saving, setSaving] = useState(false);
 
   const step = steps[currentStep];
+  const supabase = createClient();
 
   /* helpers */
   const goNext = useCallback(() => {
@@ -139,6 +142,27 @@ function OnboardingContent() {
         : [...current, value];
       return { ...prev, [currentStep]: next };
     });
+  };
+
+  const handleFinish = async () => {
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from("profiles")
+          .update({
+            onboarding_completed: true,
+            onboarding_answers: selections,
+            display_name: userName,
+          })
+          .eq("id", user.id);
+      }
+    } catch {
+      // Allow navigation even if save fails
+    }
+    setSaving(false);
+    router.push("/home");
   };
 
   /* ---- render ---- */
@@ -191,10 +215,11 @@ function OnboardingContent() {
 
           {/* CTA */}
           <button
-            onClick={() => router.push("/home")}
-            className="bg-white text-brand-pink font-bold text-lg uppercase rounded-full py-4 w-full mt-8 shadow-lg hover:bg-gray-50 transition-colors"
+            onClick={handleFinish}
+            disabled={saving}
+            className="bg-white text-brand-pink font-bold text-lg uppercase rounded-full py-4 w-full mt-8 shadow-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            Let&apos;s Go Baby! 🎤
+            {saving ? "Saving..." : "Let\u2019s Go Baby! 🎤"}
           </button>
 
           {/* Back */}
